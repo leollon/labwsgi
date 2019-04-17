@@ -1,5 +1,6 @@
 import os
 import sys
+import datetime
 
 
 enc, esc = sys.getfilesystemencoding(), 'surrogateescape'
@@ -44,19 +45,20 @@ def run_with_cgi(application):
             >>> write(data)
 
         """
-        out = sys.stdout.buffer
+        # out = sys.stdout.buffer
+        ret_data = b''
 
         if not headers_set:
             raise AssertionError("write() before start_response()")
         elif not headers_sent:
             # before the first output, send the stored headers
             status, response_headers = headers_sent[:] = headers_set
-            out.write(wsgi_to_bytes('Status: %s\r\n' % status))
+            ret_data += wsgi_to_bytes("HTTP/1.1 %s\r\n" % status)
             for header in response_headers:
-                out.write(wsgi_to_bytes('%s: %s\r\n' % header))
-            out.write(wsgi_to_bytes('\r\n'))
-        out.write(data)
-        out.flush()
+                ret_data += wsgi_to_bytes("%s: %s\r\n" % header)
+            ret_data += wsgi_to_bytes('\r\n')
+        ret_data += data
+        return ret_data
 
     def start_response(status, response_headers, exc_info=None):
         """
@@ -72,6 +74,12 @@ def run_with_cgi(application):
             >>> start_response(status, response_headers)
 
         """
+        headers = [
+            ('Server', 'labwsgi'),
+            ('Date', datetime.datetime.now().strftime(
+                "%a, %d %m %Y %H:%M:%S %z")
+             )
+        ]
         if exc_info:
             try:
                 if headers_sent:
@@ -81,7 +89,7 @@ def run_with_cgi(application):
                 exc_info = None  # avoid dangling circular ref
         elif headers_set:
             raise AssertionError("headers already set!")
-        headers_set[:] = [status, response_headers]
+        headers_set[:] = [status, response_headers + headers]
 
         # Note: error checking on the headers should happen here,
         # *after* the headers are set.  That way, if an error
@@ -91,15 +99,17 @@ def run_with_cgi(application):
         return write
 
     result = application(environ, start_response)
+    ret_data = b''
     try:
         for data in result:
             if data:    # don't send headers until body appears
-                write(data)
+                ret_data += write(data)
         if not headers_sent:
-            write('')  # send headers now if body was empty
+            ret_data += write('')  # send headers now if body was empty
     finally:
         if hasattr(result, 'close'):
             result.close()
+    return ret_data
 
 
 if __name__ == "__main__":
