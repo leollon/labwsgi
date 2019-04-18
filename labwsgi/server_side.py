@@ -2,12 +2,13 @@ import os
 import sys
 import datetime
 
-
+# 获取文件系统中编码
 enc, esc = sys.getfilesystemencoding(), 'surrogateescape'
 
 
 def unicode_to_wsgi(u):
     # Convert an environment variable to a WSGI "BYTES-as-unicode" string
+    # 将环境变量中的转换成文件系统中编码，然后解码成iso-8859-1
     return u.encode(enc, esc).decode('iso-8859-1')
 
 
@@ -66,13 +67,6 @@ def run_with_cgi(application):
         : type response_headers: tuple, e.g[(header_name, header_value), ]
         : type exc_info: tuple, must be a Python sys.exc_info() tuple, used when the application has trapped an error
         : rtype: callable
-
-        Examples
-
-            >>> status = "999 Message here"
-            >>> response_headers = [(header_name, header_value), ]
-            >>> start_response(status, response_headers)
-
         """
         headers = [
             ('Server', 'labwsgi'),
